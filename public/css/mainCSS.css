@@ -1,0 +1,250 @@
+
+body {
+  font-family: sans-serif;
+  background-color:#040404;
+  z-index:0;
+}
+
+
+#chatContainer {
+  margin: 10px;
+  position: fixed;
+  bottom: 0;
+  right: 0;
+  border: 3px groove#a17f1a;
+  outline: none;
+  background-color: #040404;
+  border-radius: 5px 15px;
+  z-index: 1;
+  min-width: 25%;
+  max-width: 30%;
+}
+
+.myMessage {
+  color: white;
+  float: left;
+  text-align: end;
+  clear: both;
+  font-size: 12px;
+  font-weight: bold;
+  overflow-wrap: break-word;
+  outline: none;
+  width: 94%;
+  padding: 5px;
+  margin: 0;
+}
+
+.receivedMessage {
+  float: left;
+  clear: both;
+  font-size: 12px;
+  margin: 0;
+  color: grey;
+  width: 94%;
+  overflow-wrap: break-word;
+  padding: 5px;
+}
+
+#chatInput {
+  outline: none;
+  border-radius: 11px;
+  margin-top: 5px;
+  width: 95%;
+  margin-left: 2px;
+  background-color: darkgray;
+}
+
+textarea {
+  resize: none;
+}
+
+
+.sidepanel {
+ position: absolute;
+ right:60px;
+ top:10px;
+ width: 12vw;
+}
+
+.videoContainer {
+  widows: 50%;
+  height:50%;
+}
+
+#screenSharingArea {
+  margin-top: 5%;
+  margin-left: 2%;
+  margin-right: 2%;
+  margin-bottom: 5%;
+  max-width: 80%;
+  height: auto;
+  background-color: initial;
+}
+
+.basicButton button {
+  width: 30px;
+  height: 30px;
+  border: 1px solid #040404;
+  outline: none;
+  border-radius: 10%;
+}
+
+.chatBtn {
+  bottom: 5px;
+  right: 10px;
+  border: 1px groove#a17f1a;
+  outline: none;
+  color: grey;
+  border-radius: 15%;
+  background-color: #040404;
+}
+
+
+.chatNotificationElement {
+  width: 11px;
+  height: 11px;
+  font-size: x-small;
+  font-weight: bolder;
+  text-align: center;
+  padding: 1px;
+  color: grey;
+  background-color: #040404;
+  border: 1px solid #a17f1a;
+  border-radius: 50%;
+  position: absolute;
+  bottom: 50%;
+  left: -18%;
+}
+
+
+.chatBtnContainer {
+    position: fixed;
+    right: 0;
+    top: 95%;
+    z-index: 1;
+}
+
+.screenPlayer {
+  max-width: 60%;
+  border: 2px double #a17f1a;
+  padding: 1%;
+  border-radius: 1%;
+  margin-bottom: 5%;
+}
+
+.chatExit {
+  margin: 5px;
+  float: right;
+  border-radius: 50px;
+  outline: none;
+  background-color: darkgray;
+  border-color: #040404;
+}
+
+.display-block {
+  display: block;
+}
+
+#chatDisplayArea {
+  padding: 10px;
+  width: auto;
+  height: 200px;
+  overflow-y: auto;
+  scroll-snap-type: mandatory;
+}
+
+.display-none {
+  display:none;
+}
+
+
+#audioShare:active, .chatExit:active, #videoShare:active {
+  transform: scale(0.6);
+} 
+
+
+.connect:active {
+  transform:scale(0.6);
+}
+
+
+.basicButton {
+  width: auto;
+  margin-bottom: -15px;
+}
+
+.basicButton button {
+  width: 80px;
+  height: 80px;
+  border-left: 5px groove#a17f1a;
+  border-right: 5px groove#a17f1a;
+  outline: none;
+  color: white;
+  border-radius: 50%;
+  background-color: #040404;
+  transform: scale(0.7);
+}
+
+.shareIcon {
+    width: 70%;
+    height: 50%;
+    filter: invert(0.8);
+}
+
+.statusConnection, .statusAudio {
+  left: 36px;
+  top: -17px;
+  border: 1px solid black;
+  background-color: rgb(139, 6, 6);
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  position: relative;
+}
+
+
+
+.shareStatusAudio {
+  left: 14px;
+  top: -75px;
+}
+
+.audioButton button {
+  margin-top:10px;
+  margin-left:-5px;
+  padding:10px;
+
+  outline:0;
+  
+}
+
+
+.activeStatus {
+  animation-name: pulse;
+  animation-duration: 2s;
+  animation-iteration-count: infinite;
+}
+
+@keyframes pulse {
+  from { transform: scale(0.7); }
+  50% { transform: scale(0.8); }
+  to { transform: scale(0.7); }
+}
+
+
+.button-active {
+  transform:scale(0.6);
+  filter: saturate(5);
+  animation-name: pulse;
+  animation-duration: 2s;
+  animation-iteration-count: infinite;
+ 
+}
+
+
+@media only screen and (max-width: 600px) {
+.options {
+  margin-right:50px;
+}
+}
+

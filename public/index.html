@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+
+  <title>WebRTC: General Use Component</title>
+  <meta charset="utf-8">
+  <link rel="stylesheet" href="./css/mainCSS.css" type="text/css" media="all">
+  </link>
+
+  <script src="./js/adapter.js"></script>
+  <script src="./js/socket.io.js"></script>
+  <script src="./typescript/RTCShareManager.js"></script>
+
+
+
+</head>
+
+<body id="body">
+  <script type="module">
+
+    const live_mode_button = document.getElementById("liveMode");
+    const audio_share_button = document.getElementById("audioShareButton");
+    const video_share_button = document.getElementById("videoShareButton");
+    const chat_exit_button = document.getElementById("chatCloseButton");
+    const chat_open_button = document.getElementById("chatOpenButton");
+    const chat_container = document.getElementById("chatContainer");
+    const chat_notification = document.getElementById("chatNotification");
+
+
+    var rtc = new RTCShareManager(null, { 
+    behaviour: {
+      live_mode: {
+        start_connection: true,
+        chat: false,
+        audio_share: true
+      }
+    },
+		buttons: {
+      live_mode: "liveMode",
+      audio_share_button: "audioShare",
+      video_share_button: "videoShareButton",
+      chat_exit_button: "chatCloseButton",
+      chat_open_button: "chatOpenButton"
+    },
+    keys: {
+     
+    },
+    ice_servers: [{
+        urls: "https://example_url.fi:XXXXX",
+        username: "example_username",
+        credential: "example_password"
+    }],
+    event_handlers: {
+      on_receive_audio: "",
+      on_audio_share: "",
+      on_receive_message: "",
+      on_video_share: "",
+      on_receive_video: "",
+
+      on_live_mode: function(args) {
+        if(!rtc.liveModeStatus) {
+          live_mode_button.classList.add("button-active");
+        } else if(rtc.liveModeStatus) {
+          live_mode_button.classList.remove("button-active");
+      if(audio_share_button.classList.contains("button-active")) {
+          audio_share_button.classList.remove("button-active");
+      }
+    
+      if(video_share_button.classList.contains("button-active")) {
+          video_share_button.classList.remove("button-active");
+      }
+      
+      audio_share_button.classList.add("display-none");
+      video_share_button.classList.add("display-none");
+      chat_open_button.style.display = "none";
+      }
+      
+      },
+      display_share_icons: function(args) {
+          audio_share_button.classList.remove("display-none");
+          video_share_button.classList.remove("display-none");
+          chat_open_button.style.display = "";
+      },
+      create_video_element: function(args) {
+       
+    for (let i = 0; i < args.video_container.length; i++) {
+      let attributeId = args.video_container[i].getAttribute("data");
+      if (attributeId == id) {
+        return;
+      }
+    }
+
+    args.video_player.setAttribute("data", "" + args.id + "");
+    args.video_player.setAttribute("autoplay", "");
+
+    args.video_container.appendChild(args.video_player);
+    console.log("got remote video from " + args.id);
+      },
+      on_audio_share: function(args) {
+        if(args.isSharing == false) {
+          audio_share_button.classList.remove("button-active");
+        } else if(args.isSharing == true) {
+          audio_share_button.classList.add("button-active");
+        }
+      },
+      on_video_share: function(args) {
+        if(args.isSharing == false) {
+          video_share_button.classList.remove("button-active");
+        } else if(args.isSharing == true) {
+          video_share_button.classList.add("button-active");
+        }
+      },
+      on_chat: function(args) {
+       if(args.displayChat == true) {
+        chat_open_button.classList.remove("display-none");
+        chat_open_button.style = "";
+       } else if(args.displayChat == false) {
+         //remove chat
+       } else if (args.isActive) {
+        chat_open_button.classList.add("display-none");
+        chat_container.classList.remove("display-none");
+      
+       } else if (args.minimize == true) {
+        chat_container.classList.add("display-none");
+        chat_open_button.classList.remove("display-none");
+        if(!chat_notification.classList.contains("display-none")) {
+          chat_notification.classList.add("display-none");
+        }
+       } else if (args.showNotification == true) {
+        chat_notification.classList.remove("display-none");
+       }
+      },
+
+  },
+     html_elements: {
+      audio_container: "audioPlayerContainer",
+      video_container: "videoDisplayArea",
+      chat_container: "chatContainer",
+      chat_notification: "chatNotification",
+      chat_display_area: "chatDisplayArea",
+      chat_input: "chatInput",
+    }
+  });
+
+    live_mode_button.addEventListener("click", () => rtc.liveMode());
+    audio_share_button.addEventListener("click", () => rtc.startAudioShare());
+    video_share_button.addEventListener("click", () => rtc.startVideoShare());
+    chat_exit_button.addEventListener("click", () => rtc.closeChat());
+    chat_open_button.addEventListener("click", () => rtc.getChatMedia());
+
+  </script>
+ 
+  <div class="sidepanel" id="leftPanel"></div>
+
+  <div class="videoContainer">
+    <video id="videoDisplayArea" autoplay></video>
+  </div>
+
+
+  <div class="chatBtnContainer">
+    <div class="chatNotificationElement display-none" id="chatNotification"></div>
+    <button id="chatOpenButton" class="chatBtn display-none">chat</button>
+  </div>
+
+  <div id="chatContainer" class="display-none">
+    <button class="chatExit" id="chatCloseButton">-</button>
+    <div id="chatDisplayArea"></div>
+    <textarea id="chatInput" type="text"></textarea>
+  </div>
+
+  <div class="sidepanel" id="rightPanel">
+    <div id="audioPlayerContainer"></div>
+  </div>
+
+  <div class="options">
+    <div class="basicButton">
+      <button id="startConnection" class="display-none"><img src="connection.png" class="shareIcon" /> </button>
+    </div>
+
+    <div class="basicButton">
+      <button id="liveMode"><img src="liveIcon.png" class="shareIcon" /> </button>
+    </div>
+
+    <div class="basicButton">
+      <button id="audioShareButton" class="display-none"><img src="headphones.jpg" class="shareIcon" /></button>
+    </div>
+
+    <div class="basicButton">
+      <button id="videoShareButton" class="display-none"><img src="videoIcon.png" class="shareIcon" /> </button>
+    </div>
+  </div>
+</body>
+</html>

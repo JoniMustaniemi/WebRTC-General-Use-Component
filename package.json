@@ -1,0 +1,27 @@
+{
+  "name": "webrtc",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "",
+    "url": ""
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "@types/jquery": "^3.3.31",
+    "express": "^4.15.4",
+    "io-ts": "^2.0.0",
+    "socket.io": "^2.0.3",
+    "socket.io-client": "^2.2.0",
+    "webrtc-adapter": "^7.3.0"
+  },
+  "devDependencies": {
+    "typescript": "^3.5.3"
+  }
+}
