@@ -3,7 +3,10 @@ Open source WebRTC component that meets the definition of general usability and 
 
 
 # Example project - Chat
-an example project can be found here: https://gifted-heyrovsky-8b6bb3.netlify.app/
+https://gifted-heyrovsky-8b6bb3.netlify.app/
 
 # Example project - Audio
-an example project can be found here: https://focused-bardeen-4cb1a8.netlify.app/
+https://focused-bardeen-4cb1a8.netlify.app/
+
+# Example project - Screen sharing
+https://suspicious-hopper-0e7114.netlify.app/
