@@ -9,8 +9,6 @@ class ConnectionManager {
   private videoElement: HTMLElement;
   private client: any;
 
-
-  
   public myAudioSharingStatus: boolean = false;
   public myVideoSharingStatus: boolean = false;
   public myAudioReceiveStatus: boolean = false;
@@ -48,13 +46,18 @@ class ConnectionManager {
   readonly CLIENTDISCONNECT: string = "client disconnect";
   readonly UPDATEAUDIOSTATUS: string = "update audio status";
 
-
+  /**
+   * Creates an instance of connection manager.
+   * @author Joni Mustaniemi
+   * @param ws Websocket client
+   * @param options options for configuring UI
+   */
   constructor(ws: IWebSocketClient, options: any) {
     this.options = options;
     this.chatDisplayArea = document.getElementById(this.options.html_elements.chat_display_area);
     this.videoElement = document.getElementById(this.options.html_elements.screen_share_area);
 
-
+    // if Websocket client is not already instantiated, instantiate client and start websocket connection
     if (ws) {
       this.socket = ws;
     } else {
@@ -63,11 +66,13 @@ class ConnectionManager {
     }
     this.myID = this.socket.getUserId();
 
+    // registerSignalhandler for handling websocket events and signaling between clients until WebRTC connection has been established
     this.socket.registerSignalHandler(async (signalData: ISocketSignal) => {
       this.myID = this.socket.getUserId(); 
 
       if (signalData.data.event == this.UPDATECLIENTLISTINIATE) {
 
+        // shares livemode status with other clients
         this.socket.sendSignal({
           room: this.room,
           data: {
@@ -77,19 +82,19 @@ class ConnectionManager {
           },
         });
       }
-
+      // checks for dublicate clients, if client already exists does not create another one
       if (signalData.data.event == this.UPDATECLIENTLIST && signalData.data.sender !== this.myID) {
         if (signalData.data.liveStatus && this.liveModeStatus) {
           if (this.connections.length) {
             for (let i = 0; i < this.connections.length; i++) {
               if (signalData.data.sender == this.connections[i].client.id) {
                 this.dublicate = this.connections[i].client.id;
-                // console.log("dublicate found");
                 return;
               }
             }
           }
 
+          // creates new connection and tracks existing ones
           let newConnection = new Connection(signalData.data.sender, this.options);
           this.connections.push(newConnection);
 
@@ -97,16 +102,19 @@ class ConnectionManager {
           let object2: any = newConnection.client.connectionObjects.object2;
           let id = newConnection.client.id;
 
+          // creates datachannel for a client (linked via id) and tracks all existing datachannels
           let newDatachannel: IDatachannel = {
             id: newConnection.client.id,
             datachannel: object1.createDataChannel("" + id + "")
           };
           this.datachannels.push(newDatachannel);
-
+          
+          // sets eventhandlers for datachannels and connection objects
           newDatachannel.datachannel.onopen = () => {
             console.log("datachannel is open");
             console.log("--------------------------");
 
+            // updates chats datachannels
             this.updateChat({
               datachannels: this.datachannels
             });
@@ -116,11 +124,10 @@ class ConnectionManager {
             console.log("datachannel " + id + " closed");
           }
 
-          // also works in firefox
           object1.oniceconnectionstatechange = (event) => {
             this.onConnectionStatusChange(object1, id);
 
-
+            // in case you want to do something when the connection status changes -- PLACEHOLDER
             if (typeof options.event_handlers.on_connection_status_change === 'function') {
               options.event_handlers.on_connection_status_change({
                 connection: newConnection,
@@ -129,6 +136,9 @@ class ConnectionManager {
             }
           }
 
+          // when candidate has been found, send it to the other client
+          //    type 1 sends to 2
+          //    type 2 sends to 1
           object1.onicecandidate = (event: RTCPeerConnectionIceEvent) => {
             if (event.candidate) {
               let candidate = event.candidate;
@@ -163,12 +173,15 @@ class ConnectionManager {
             }
           }
 
+          // when track has been added to the connection object:
+          //    check kind
+          //    check permissions
+          //    change statuses to reflect current state
+          //    do task based on type and permission eg. play video or display error because permission was not granted
           object2.ontrack = async (event: RTCTrackEvent) => {
             console.log(event.track);
             if (event.track.kind === "video") {
               console.log("GOT VIDEOTRACK");
-
-
 
               if (this.videoReceivePermission == true) {
                 this.onReceiveVideo({
@@ -194,16 +207,19 @@ class ConnectionManager {
               });
             }
           }
-
+          
+          // fires everytime connectionobjects finds out there is another connection object that it is not connected to
+          //    if the state of the connection object is stable start negotiation eg. connection object is new or it has no on going negotiations
           object1.onnegotiationneeded = (event: Event) => {
             if (object1.signalingState == "stable") {
               console.log("IM NEGOTIATING WITH " + id);
               this.createOffers(object1, id);
             }
           }
+
+          // when receiving connection object gets access to datachannel create event listeners for messages (Chat-functionality)
           var that = this;
           object2.ondatachannel = function (event: RTCDataChannelEvent) {
-
             event.channel.addEventListener("message", ev => {
               let data = null;
               try {
@@ -226,6 +242,7 @@ class ConnectionManager {
         }
       }
 
+      // on receiving an offer checks that it's for me and if so sets the offer as remote description of the connection.
       if (signalData.data.event == this.SENDOFFER && signalData.data.Receiver == this.myID) {
         for (let i = 0; i < this.connections.length; i++) {
           if (this.connections[i].client.id == signalData.data.Sender) {
@@ -235,7 +252,7 @@ class ConnectionManager {
         }
       }
 
-
+      // on receiving an answer checks that it's for me and if so set the answer as the remote description of the connection
       if (signalData.data.event == this.SENDANSWER && signalData.data.Receiver == this.myID) {
         for (let i = 0; i < this.connections.length; i++) {
           if (this.connections[i].client.id == signalData.data.Sender) {
@@ -245,7 +262,7 @@ class ConnectionManager {
         }
       }
 
-
+      // in the case of client losing connection, close and disconnect everything
       if (signalData.data.event == this.CLIENTDISCONNECT && signalData.sender !== this.myID) {
         let id = signalData.sender;
         for (let i = 0; i < this.connections.length; i++) {
@@ -253,6 +270,7 @@ class ConnectionManager {
             this.connections[i].client.connectionObjects.object1.close();
             this.connections[i].client.connectionObjects.object2.close();
             this.connections.splice(i, 1);
+
             console.log("client " + id + " disconnected");
           }
           this.removeAudioPlayer({
@@ -278,7 +296,11 @@ class ConnectionManager {
       }
 
 
-
+      // on receiving a candidate check that it's for me and if so 
+      //    check the type
+      //        type 1 -> object 2
+      //        type 2 -> object 1
+      //    add candidate
       if (signalData.data.event == this.SENDCANDIDATE && signalData.data.Receiver == this.myID) {
         for (let i = 0; i < this.connections.length; i++) {
           if (this.connections[i].client.id == signalData.data.Sender) {
@@ -296,8 +318,13 @@ class ConnectionManager {
     });
   }
 
-
-  public startConnection(liveModeStatus) {
+ /**
+  * @description Starts connection process by sharing livemode status with other clients
+  * @author Joni Mustaniemi
+  * @param liveModeStatus client's livemode state
+  * @returns void
+  */
+ public startConnection(liveModeStatus): void {
     this.liveModeStatus = liveModeStatus;
     this.socket.sendSignal({
       room: this.room,
@@ -309,10 +336,16 @@ class ConnectionManager {
     });
   }
 
-
-
-  //handles all sharestatus changes of RTCPeerConnections
-  public changeStatusHandler(shareType: string, role: string, state: boolean, id: string) {
+  /**
+   * @description Handles client's status changes
+   * @author Joni Mustaniemi
+   * @param shareType audio or video
+   * @param role receiving or sharing
+   * @param state true or false
+   * @param id identification string of the spesific client
+   * @returns void
+   */
+  public changeStatusHandler(shareType: string, role: string, state: boolean, id: string): void {
     console.log("changing statuses for " + id);
     for (let i = 0; i < this.connections.length; i++) {
       if (this.connections[i].client.id == id) {
@@ -322,7 +355,16 @@ class ConnectionManager {
     }
   }
 
-  private changeStatus(shareType: string, role: string, state: boolean, id: string) {
+  /**
+   * @description Changes state of the client
+   * @author Joni Mustaniemi
+   * @param shareType audio or video
+   * @param role  receiving or sharing
+   * @param state true or false
+   * @param id identification string of the spesific client
+   * @returns void
+   */
+  private changeStatus(shareType: string, role: string, state: boolean, id: string): void {
     if (shareType == "audio") {
       if (role == "send") {
         console.log("changing receive status(audio) of" + id + " to " + state);
@@ -348,10 +390,15 @@ class ConnectionManager {
     }
   }
 
-  public clientDisconnect() {
+  /**
+   * @description Clients disconnect handler - If the client disconnects, close, null and disconnect everything
+   * and send disconnect event to other clients so they know that another client have been disconnected
+   * @author Joni Mustaniemi
+   * @returns void
+   */
+  public clientDisconnect(): void {
 
     this.nullShareStatuses();
-
 
     for (let i = 0; i < this.connections.length; i++) {
       let object1 = this.connections[i].client.connectionObjects.object1;
@@ -372,14 +419,26 @@ class ConnectionManager {
     });
   }
 
-  private nullShareStatuses() {
+  /**
+   * @description Nulls all statuses
+   * @author Joni Mustaniemi
+   * @returns void
+   */
+  private nullShareStatuses(): void {
     this.myAudioSharingStatus = undefined;
     this.myAudioReceiveStatus = undefined;
     this.myVideoSharingStatus = undefined;
     this.myVideoReceiveStatus = undefined;
   }
 
-  private onConnectionStatusChange(object: RTCPeerConnection, id: string) {
+  /**
+   * @description Determines what happens on different stages of the connection
+   * @author Joni Mustaniemi
+   * @param object the connection object
+   * @param id identification string of the spesific client
+   * @returns  void
+   */
+  private onConnectionStatusChange(object: RTCPeerConnection, id: string):  void {
 
     if (object.iceConnectionState == "checking") {
       console.log("Checking...");
@@ -439,7 +498,13 @@ class ConnectionManager {
     }
   }
 
-  private checkForNewStates() {
+  /**
+   * @description Checks for new states among the connection objects
+   * if connection object is in new state for too long it gets deleted
+   * @author Joni Mustaniemi
+   * @returns void
+   */
+  private checkForNewStates(): void {
     for (let i = 0; i < this.connections.length; i++) {
       let object = this.connections[i].client.connectionObjects.object1;
       let id = this.connections[i].client.id;
@@ -452,7 +517,14 @@ class ConnectionManager {
     }
   }
 
-  private removeHandler(object: RTCPeerConnection, id: string) {
+  /**
+   * @description removes connection from tracked connections for being in new state for too long
+   * @author Joni Mustaniemi
+   * @param object connection object
+   * @param id identification string of the spesific client
+   * @returns void
+   */
+  private removeHandler(object: RTCPeerConnection, id: string): void {
     if (object.iceConnectionState == "new") {
       for (let i = 0; i < this.connections.length; i++) {
         if (this.connections[i].client.id == id) {
@@ -466,11 +538,18 @@ class ConnectionManager {
     }
   }
 
-  //sets local description, creates offer and sends it to correct client
-  private async createOffers(object: RTCPeerConnection, client: string) {
+  /**
+   * @description Creates offers, sets local description and sends offer to the correct client
+   * @author Joni Mustaniemi
+   * @param object connection object
+   * @param client identification string of the spesific client
+   * @returns promise
+   */
+  private async createOffers(object: RTCPeerConnection, client: string): Promise<void> {
     try {
       let offer = await object.createOffer();
       await object.setLocalDescription(offer);
+      // reassurance that object is in correct state since recovering from wrong state is not possible
       if (object.signalingState == "have-local-offer") {
         this.socket.sendSignal({
           room: this.room,
@@ -487,8 +566,16 @@ class ConnectionManager {
     }
   }
 
-  //sets remote description based on type (offer or answer)
-  //if type is 'answer' completes the handshake and checks if RTCPeerConnection object is connected succesfully
+  /**
+   * @description Sets remote description based on type (offer or answer)
+   * if type is 'answer' completes the handshake and checks if RTCPeerConnection object is connected succesfully
+   * if type is 'offer' sets remote description, creates answer and sends it to the correct client
+   * @author Joni Mustaniemi
+   * @param object connection object
+   * @param type offer or answer
+   * @param offer local description of another client
+   * @param id identification string of the spesific client
+   */
   private async setRemote(object: RTCPeerConnection, type: string, offer: RTCSessionDescription, id ? : string) {
     if (type == "offer") {
       try {
@@ -515,7 +602,6 @@ class ConnectionManager {
         await object.setRemoteDescription(offer);
       } catch (error) {
         console.log("Remote(answer)[" + id + "]: " + error);
-
       }
     }
   }
@@ -543,7 +629,6 @@ export interface IWebSocketClient {
   registerSignalHandler(handler: IServerSignalHandlerCallbackDelegate): void;
   startWebSocketConnection(): void;
   getUserId(): string
-  //sendUserRoomStatus(status: any): void;
 }
 
 interface IClient {
@@ -564,6 +649,11 @@ interface IDatachannel {
   datachannel: RTCDataChannel;
 };
 
+/**
+ * @description Connection Aka. Client
+ * holds clients statuses, configurations and the client object itself
+ * @author Joni Mustaniemi
+ */
 class Connection {
 
   private isSharingAudio: boolean;
@@ -577,11 +667,16 @@ class Connection {
   constructor(id: string, options: any) {
     console.log("client was created");
 
+    // iceTransportPolicy can be used to limit the transport policies of the ICE candidates to be considered during the connection process
+    // if this is not spesified, 'all' is assumed
     this.configuration = {
       iceTransportPolicy: "relay",
       iceServers: options.ice_servers
     };
     
+    // the client object holds 2 RTCPeerCOnnection objects per client
+    // 1 would be sufficient if 'rollback' functionality is used. it's not used by default and thus 2 objects are used
+    // 1 for receiving (object2) and 1 for sending (object1)
     this.client = {
       id: id,
       connectionObjects: {
@@ -598,6 +693,10 @@ class Connection {
   }
 }
 
+/**
+ * @description Manages and orchestrates all share events
+ * @author Joni Mustaniemi
+ */
 class RTCShareManager {
   private audioShareBtn: HTMLElement;
   private videoShareBtn: HTMLElement;
@@ -614,7 +713,6 @@ class RTCShareManager {
   private videoShare: VideoSharing;
   private videoShareArea: HTMLElement;
   private options: any;
-
 
   constructor(ws: IWebSocketClient, options: any) {
     this.options = options;
@@ -633,8 +731,6 @@ class RTCShareManager {
     this.videoShareArea = document.getElementById(this.options.html_elements.video_container);
     this.videoShareBtn = document.getElementById(this.options.buttons.video_share_button);
    
-
-
     this.conMan.onReceiveAudio = (args: any) => {
       var audioStream = this.aShare.receiveMedia(args.event, args.id, args.connections);
 
@@ -646,7 +742,6 @@ class RTCShareManager {
         });
       }
     };
-
 
     this.conMan.onReceiveVideo = (args: any) => {
       this.videoShare.receiveMedia(args.event, args.id, args.connections);
@@ -703,39 +798,69 @@ class RTCShareManager {
       this.textChat.removeDatachannel(args.id);
     };
   }
-
-  public setRoom(room: IRoomInfo) {
+  
+  /**
+   * @description Sets websocket room
+   * @author Joni Mustaniemi
+   * @param room the websocket room name
+   * @returns void
+   */
+  public setRoom(room: IRoomInfo): void {
     this.conMan.room = room;
   }
 
-  public sendChatMessage(message: string) {
+  /**
+   * @description Sends chat message if the chat is active
+   * @author Joni Mustaniemi
+   * @param message user input to be sent
+   * @returns void
+   */
+  public sendChatMessage(message: string): void {
     if (this.textChat) {
       this.textChat.sendData(message);
     }
   }
 
-
-  public closeChat() {
+  /**
+   * @description Closes chat
+   * @author Joni Mustaniemi
+   * @returns void
+   */
+  public closeChat(): void {
     this.textChat.closeChat();
   }
 
-  public getChatMedia() {
+  /**
+   * @description initializes chat, updates datachannels and client's id
+   * @author Joni Mustaniemi
+   * @returns void
+   */
+  public getChatMedia(): void {
     this.textChat.getMedia(this.conMan.datachannels, this.conMan.myID);
   }
 
-
-  public liveMode() {
+/**
+ * @description in order to receive and share data or media client must be in livemode
+ * updates UI based on livemode
+ * starts connection process if 2 or more clients are in livemode
+ * @author Joni Mustaniemi
+ * @returns void
+ */
+public liveMode(): void {
     if (typeof this.options.event_handlers.on_live_mode === 'function') {
       this.options.event_handlers.on_live_mode({
         isLive: !this.liveModeStatus
       });
     }
 
+    // if livemode was not true, change livemode to true and start connection process
     if (!this.liveModeStatus) {
       this.liveModeStatus = true;
       this.conMan.startConnection(this.liveModeStatus);
+      // instantiate chat so it is on by default as soon as connection is up
       this.textChat = new Chat(this.options);
 
+      // can be used to set share events start on successful connection establish
       var behaviour = this.options.behaviour;
       if (behaviour && behaviour.live_mode) {
         if (behaviour.live_mode.audio_share) {
@@ -755,7 +880,13 @@ class RTCShareManager {
     }
   }
 
-  private stopLiveMode() {
+
+  /**
+   * @description Stops live mode
+   * @author Joni Mustaniemi
+   * @returns void
+   */
+  private stopLiveMode(): void {
     this.aShare.close();
     this.textChat.close();
     this.conMan.clientDisconnect();
@@ -765,11 +896,23 @@ class RTCShareManager {
     this.conMan.videoReceivePermission = true;
   }
 
-  public displayInConsole() {
+  /**
+   * @description Displays tracked connections in console
+   * used in debugging
+   * @author Joni Mustaniemi
+   * @returns void
+   */
+  public displayInConsole(): void {
     console.log(this.conMan.connections);
   }
 
-  private shareEventType(type: string) {
+  /**
+   * @description handles media sharing and updates UI based on type
+   * @author Joni Mustaniemi
+   * @param type type of media e.g video or audio
+   * @returns void
+   */
+  private shareEventType(type: string): void {
     if (type == "video") {
       if (typeof this.options.event_handlers.on_video_share === 'function') {
         this.options.event_handlers.on_video_share({
@@ -786,6 +929,7 @@ class RTCShareManager {
       }
     }
 
+    // because audio is on by default (as soon as client enters LiveMode), changes all of the clients audio receive status to true
     if (type == "audio") {
       if (!this.isSharingAudio) {
         this.isSharingAudio = true;
@@ -798,7 +942,8 @@ class RTCShareManager {
         return;
       }
 
-      this.aShare.getMedia(this.conMan.connections).then((stream: MediaStream) => {
+      // get media tracks and add event listener for track in case of 'ended' + updates the UI
+      this.aShare.getMedia(this.conMan.connections).then((stream: MediaStream): void => {
         let tracks = stream.getTracks();
         for (const track of tracks) {
           track.addEventListener('ended', () => {
@@ -820,27 +965,45 @@ class RTCShareManager {
         console.error('Error sharing audio', error);
       });
     }
-
+    // in case a client joins mid share re share the video to that client
     if (type == "continueVideoShare") {
       this.videoShare.checkClientsForVideosharing();
     }
 
   }
 
-  public startAudioShare() {
+  /**
+   * @description Starts audio share
+   * @author Joni Mustaniemi
+   * @returns void
+   */
+  public startAudioShare(): void {
     this.shareEventType("audio");
   }
 
-  public startVideoShare() {
+  /**
+   * @description Starts video share
+   * @author Joni Mustaniemi
+   * @returns void
+   */
+  public startVideoShare(): void {
     this.shareEventType("video");
   }
 
 }
 
+/**
+ * @description An abstract class that can be used when expanding sharing functionality to minimize re writing existing code
+ * @author Joni Mustaniemi
+ */
 abstract class Sharing {
   protected object: RTCPeerConnection;
 }
 
+/**
+ * @description An abstract class that can be used when expanding datasharing functionality to minimize re writing existing code
+ * @author Joni Mustaniemi
+ */
 abstract class DataSharing extends Sharing {
   constructor() {
     super();
@@ -848,6 +1011,10 @@ abstract class DataSharing extends Sharing {
   public abstract getMedia(datachannels: IDatachannel[], param ? : any);
 }
 
+/**
+ * @description An abstract class that can be used when expanding mediasharing functionality to minimize re writing existing code
+ * @author Joni Mustaniemi
+ */
 abstract class MediaSharing extends Sharing {
   constructor() {
     super();
@@ -862,6 +1029,10 @@ abstract class MediaSharing extends Sharing {
 
 }
 
+/**
+ * @description Handles Audiosharing related things
+ * @author Joni Mustaniemi
+ */
 class AudioSharing extends MediaSharing {
 
   protected object: RTCPeerConnection;
@@ -891,7 +1062,12 @@ class AudioSharing extends MediaSharing {
     this.audioButton = document.getElementById(this.options.buttons.audio_share);
   }
 
-  //asks access to user microphone and adds audiotracks to correct RTCPeerConnection
+  /**
+   * @description asks access to user microphone and adds audiotracks to correct RTCPeerConnection
+   * @author Joni Mustaniemi
+   * @param connections list of tracked connections
+   * @returns media 
+   */
   public getMedia(connections: Connection[]): Promise < MediaStream > {
     this.connections = connections;
 
@@ -914,8 +1090,14 @@ class AudioSharing extends MediaSharing {
     }
   }
 
-
-  protected attachTrackToConnections(track: MediaStreamTrack, connections: Connection[]) {
+  /**
+   * @description Attachs tracks to connections
+   * @author Joni Mustaniemi
+   * @param track mediastream track
+   * @param connections list of tracked connections
+   * @returns void
+   */
+  protected attachTrackToConnections(track: MediaStreamTrack, connections: Connection[]): void {
 
     for (let i = 0; i < connections.length; i++) {
       let object = connections[i].client.connectionObjects.object1;
@@ -939,8 +1121,13 @@ class AudioSharing extends MediaSharing {
     }
   }
 
-
-  public removeMediaPlayer(id: string) {
+  /**
+   * @description Removes media player
+   * @author Joni Mustaniemi
+   * @param id identification string of the spesific client
+   * @returns void
+   */
+  public removeMediaPlayer(id: string): void {
     if (this.audioContainer) {
       let audioPlayers = this.audioContainer.children;
       for (let i = 0; i < audioPlayers.length; i++) {
@@ -953,8 +1140,13 @@ class AudioSharing extends MediaSharing {
     }
 
   }
-
-  public removeMediaSender(id: string) {
+  /**
+   * @description Removes media sender for the media
+   * @author Joni Mustaniemi
+   * @param id identification string of the spesific client
+   * @returns void
+   */
+  public removeMediaSender(id: string): void {
     for (let i = 0; i < this.senders.length; i++) {
       if (this.senders[i].id == id) {
         this.senders.splice(i, 1);
@@ -963,12 +1155,21 @@ class AudioSharing extends MediaSharing {
     }
   }
 
-
-  public close() {
+  /**
+   * @description Closes audio sharing
+   * @author Joni Mustaniemi
+   * @returns void
+   */
+  public close(): void {
     this.stopMediaSharing();
   }
 
-  public stopMediaSharing() {
+  /**
+   * @description Stops media sharing
+   * @author Joni Mustaniemi
+   * @returns void
+   */
+  public stopMediaSharing(): void {
     if (this.audioTracks) {
       for (let i = 0; i < this.audioTracks.length; i++) {
         this.audioTracks[i].stop();
@@ -991,7 +1192,15 @@ class AudioSharing extends MediaSharing {
   }
 
 
-  public receiveMedia(event: RTCTrackEvent, id: string, connections: Connection[]) {
+  /**
+   * @description Handles receiving audio
+   * @author Joni Mustaniemi
+   * @param event RTCTrackEvent
+   * @param id identification string of the spesific client
+   * @param connections list of tracked connections
+   * @returns mediastream
+   */
+  public receiveMedia(event: RTCTrackEvent, id: string, connections: Connection[]): MediaStream {
     for (let i = 0; i < connections.length; i++) {
       if (connections[i].client.id == id) {
         connections[i].client.shareStatusAudio = true;
@@ -1008,9 +1217,7 @@ class AudioSharing extends MediaSharing {
         id: id
       });
     }
-
-    console.log(event.track);
-
+    // if mediastream already exists use that one, otherwise create one and set it to the audioplayer
     if (!inboundStream) {
       inboundStream = new MediaStream();
       audioPlayer.srcObject = inboundStream;
@@ -1020,6 +1227,10 @@ class AudioSharing extends MediaSharing {
   }
 }
 
+/**
+ * @description Handles Videosharing related things
+ * @author Joni Mustaniemi
+ */
 class VideoSharing extends MediaSharing {
 
   private options: any;
@@ -1034,6 +1245,7 @@ class VideoSharing extends MediaSharing {
   private isSharingVideo: boolean;
   private datachannels: IDatachannel[];
 
+  // set constraints for video e.g resolution
   private videoConstraints: any = {
     video: true
   };
@@ -1045,9 +1257,17 @@ class VideoSharing extends MediaSharing {
     this.videoButton = document.getElementById(this.options.buttons.video_share);
   }
 
+  /**
+   * @description Gets video media
+   * @author Joni Mustaniemi
+   * @param connections list of tracked connections 
+   * @param datachannels list of active datachannels
+   * @returns media 
+   */
   public getMedia(connections: Connection[], datachannels ? : IDatachannel[]): Promise < MediaStream > {
     this.datachannels = datachannels;
     this.connections = connections;
+    // video configuration settings e.g audio on video or resolution
     var displayMediaOptions = {
       audio: false
     };
@@ -1073,13 +1293,15 @@ class VideoSharing extends MediaSharing {
       console.log("Already sharing video");
     }
   }
-
-  public checkClientsForVideosharing() {
+  /**
+   * @description if videosharing is on checks all clients who might not be receiving shared video
+   * and if founds one adds videotracks from existing stream to that client's RTCPeerconnection object
+   * @author Joni Mustaniemi
+   * @returns void
+   */
+  public checkClientsForVideosharing(): void {
     console.log("checking clients..");
-    /*
-    if videosharing is on checks all clients who might not be receiving shared video
-    and if founds one adds videotracks from existing stream to that client's RTCPeerconnection object
-    */
+  
     if (this.isSharingVideo) {
       for (let i = 0; i < this.connections.length; i++) {
         if (this.connections[i].client.receiveStatusVideo !== true) {
@@ -1102,7 +1324,13 @@ class VideoSharing extends MediaSharing {
     }
   }
 
-  public async attachTrackToConnections(videoTracks ? : any) {
+  /**
+   * @description Attachs media tracks to connections
+   * @author Joni Mustaniemi
+   * @param videoTracks media tracks
+   * @returns void
+   */
+  public async attachTrackToConnections(videoTracks ? : any): Promise<void> {
     if (this.connections.length) {
       for (let i = 0; i < this.connections.length; i++) {
         let object = this.connections[i].client.connectionObjects.object1;
@@ -1126,7 +1354,13 @@ class VideoSharing extends MediaSharing {
     }
   }
 
-  public removeMediaSender(id) {
+  /**
+   * @description Removes media senders for video
+   * @author Joni Mustaniemi
+   * @param id identification string of the spesific client
+   * @returns void
+   */
+  public removeMediaSender(id): void {
     for (let i = 0; i < this.senders.length; i++) {
       if (this.senders[i].id == id) {
         this.senders.splice(i, 1);
@@ -1135,8 +1369,15 @@ class VideoSharing extends MediaSharing {
     }
   }
 
-
-  public receiveMedia(event: RTCTrackEvent, id: string, connections: Connection[]) {
+  /**
+   * @description Handles receiving video media
+   * @author Joni Mustaniemi
+   * @param event RTCTrackEvent
+   * @param id identification string of the spesific client
+   * @param connections list of tracked connections
+   * @returns void
+   */
+  public receiveMedia(event: RTCTrackEvent, id: string, connections: Connection[]): void {
     this.videoElement = document.getElementById(this.options.html_elements.screen_share_area);
     console.log(" VIDEO RECEIVED");
 
@@ -1152,9 +1393,7 @@ class VideoSharing extends MediaSharing {
         id: id
       });
     }
-
-
-    console.log(event.track);
+    // if mediastream already exists use that one, otherwise create one and set it to the audioplayer
     if (!inboundStream) {
       inboundStream = new MediaStream();
       videoPlayer.srcObject = inboundStream;
@@ -1162,11 +1401,20 @@ class VideoSharing extends MediaSharing {
     inboundStream.addTrack(event.track);
   }
 
-  public close() {
+  /**
+   * @description Closes video sharing
+   * @author Joni Mustaniemi
+   * @returns void
+   */
+  public close(): void {
     this.stopMediaSharing();
   }
-
-  protected stopMediaSharing() {
+  /**
+   * @description Stops media sharing
+   * @author Joni Mustaniemi
+   * @returns void
+   */
+  protected stopMediaSharing(): void {
     if (this.videoTracks) {
       for (let i = 0; i < this.videoTracks.length; i++) {
         this.videoTracks[i].stop();
@@ -1188,7 +1436,13 @@ class VideoSharing extends MediaSharing {
     this.senders = [];
   }
 
-  public removeMediaPlayer(id: string) {
+  /**
+   * @description Removes media player
+   * @author Joni Mustaniemi
+   * @param id identification string of the spesific client
+   * @returns void
+   */
+  public removeMediaPlayer(id: string): void {
     let videoplayers = this.videoElement.children;
     for (let i = 0; i < videoplayers.length; i++) {
       let idAttribute = videoplayers[i].getAttribute("data");
@@ -1200,6 +1454,10 @@ class VideoSharing extends MediaSharing {
   }
 }
 
+/**
+ * @description Handles chat related things
+ * @author Joni Mustaniemi
+ */
 class Chat extends DataSharing {
 
   private datachannels: any;
@@ -1225,7 +1483,7 @@ class Chat extends DataSharing {
     this.chatContainer = document.getElementById(this.options.html_elements.chat_container);
     this.chatNotification = document.getElementById(this.options.html_elements.chat_notification);
 
-
+    //chats initial state in UI or at the moment of initialization
     if (typeof this.options.event_handlers.on_chat === 'function') {
       this.options.event_handlers.on_chat({
         displayChat: true
@@ -1233,7 +1491,14 @@ class Chat extends DataSharing {
     }
   }
 
-  public getMedia(datachannels: any, myID: string) {
+  /**
+   * @description Gets chat media and sets chat active
+   * @author Joni Mustaniemi
+   * @param datachannels list of active datachannels
+   * @param myID client's id
+   * @returns void
+   */
+  public getMedia(datachannels: any, myID: string): void {
     this.datachannels = datachannels;
     this.myID = myID;
 
@@ -1251,15 +1516,32 @@ class Chat extends DataSharing {
     this.addKeyEventListener();
   }
 
-  public close() {
+  /**
+   * @description Closes chat
+   * @author Joni Mustaniemi
+   * @returns void
+   */
+  public close(): void {
     this.closeChat();
   }
 
-  public updateDatachannels(datachannels: IDatachannel[]) {
+  /**
+   * @description Updates datachannels
+   * @author Joni Mustaniemi
+   * @param datachannels list of active datachannels
+   * @returns void
+   */
+  public updateDatachannels(datachannels: IDatachannel[]): void {
     this.datachannels = datachannels;
   }
 
-  public removeDatachannel(id) {
+  /**
+   * @description Removes datachannel
+   * @author Joni Mustaniemi
+   * @param id identification string of the spesific client
+   * @returns void
+   */
+  public removeDatachannel(id): void {
     for (let i = 0; i < this.datachannels.length; i++) {
       if (this.datachannels[i].id == id) {
         this.datachannels.splice(i, 1);
@@ -1268,13 +1550,17 @@ class Chat extends DataSharing {
     }
   }
 
-  public sendData(message: string) {
+  /**
+   * @description Sends data and updates UI to show message (own)
+   * @author Joni Mustaniemi
+   * @param message message to be sent
+   * @returns void
+   */
+  public sendData(message: string): void {
     let messageObj = {
       "message": message,
       "id": this.myID
     }
-
-    console.log(messageObj);
 
     if (this.chatDisplayElement) {
       let time = new Date().toLocaleTimeString("en-GB");
@@ -1292,7 +1578,13 @@ class Chat extends DataSharing {
     }
   }
 
-  public displayMessage(messageObj: any) {
+  /**
+   * @description Displays chat message from another client
+   * @author Joni Mustaniemi
+   * @param messageObj message object from another client, includes message and id
+   * @returns void
+   */
+  public displayMessage(messageObj: any): void {
     // let receivedMessageObj = JSON.parse(messageObj);
     let message = messageObj.message;
     let id = messageObj.id;
@@ -1319,8 +1611,12 @@ class Chat extends DataSharing {
     }
   }
 
-
-  private addKeyEventListener() {
+/**
+ * @description Adds key event listener for key defined in options that when pressed sends the message
+ * @author Joni Mustaniemi
+ * @returns void
+ */
+private addKeyEventListener(): void {
     var _this = this;
     if (_this.options.keys && _this.options.keys.send_message) {
       document.addEventListener('keydown', this.sendMessageFunction = function (event) {
@@ -1332,7 +1628,12 @@ class Chat extends DataSharing {
     }
   }
 
-  private handleSendingMessage() {
+  /**
+   * @description Handles sending message
+   * @author Joni Mustaniemi
+   * @returns void
+   */
+  private handleSendingMessage(): void {
     let message = this.checkMessage();
     if (message == undefined) {
       return;
@@ -1341,13 +1642,23 @@ class Chat extends DataSharing {
     }
   }
 
-  private removeKeyEventListener() {
+  /**
+   * @description Removes key event listener
+   * @author Joni Mustaniemi
+   * @returns void
+   */
+  private removeKeyEventListener(): void {
     if (this.sendMessageFunction) {
       document.removeEventListener("keydown", this.sendMessageFunction);
     }
   }
 
-  private checkMessage() {
+  /**
+   * @description Validates message
+   * @author Joni Mustaniemi
+   * @returns string
+   */
+  private checkMessage(): string {
     let chatInputValue = this.chatInput.value;
     if (!chatInputValue.length || !chatInputValue.replace(/\s/g, '').length) {
       this.chatInput.value = "";
@@ -1359,18 +1670,26 @@ class Chat extends DataSharing {
       return chatInputValue;
     }
   }
-
-  public closeChat() {
-    this.chatIsActive = false;
-    if (typeof this.options.event_handlers.on_chat === 'function') {
-      this.options.event_handlers.on_chat({
-        minimize: true
-      });
+  /**
+   * @description Closes chat
+   * @author Joni Mustaniemi
+   * @returns void
+   */
+  public closeChat(): void {
+      this.chatIsActive = false;
+      if (typeof this.options.event_handlers.on_chat === 'function') {
+        this.options.event_handlers.on_chat({
+          minimize: true
+        });
+      }
+      this.removeKeyEventListener();
     }
-    this.removeKeyEventListener();
   }
-}
 
+/**
+ * @description Handles Websocket client
+ * @author Joni Mustaniemi
+ */
 class WebSocketLogic implements IWebSocketClient {
   private socket: any;
   private myID: string;
@@ -1382,11 +1701,21 @@ class WebSocketLogic implements IWebSocketClient {
     this.userID = userID;
   }
 
+  /**
+   * @description Gets user id
+   * @author Joni Mustaniemi
+   * @returns string
+   */
   public getUserId(): string {
     return this.myID;
   }
 
-  public startWebSocketConnection() {
+  /**
+   * @description Starts websocket connection
+   * @author Joni Mustaniemi
+   * @returns void
+   */
+  public startWebSocketConnection(): void {
     this.socket = io("https://example_url.fi:XXXXX", {
       reconnectionAttempts: 100,
       reconnectionDelay: 5000,
@@ -1407,10 +1736,21 @@ class WebSocketLogic implements IWebSocketClient {
     });
   }
 
+  /**
+   * @description Sends signal via websocket
+   * @author Joni Mustaniemi
+   * @param signal Websocket signal
+   */
   public sendSignal(signal: ISocketSignal): void {
     this.socket.emit("signal", signal);
   }
 
+  /**
+   * @description Registers signal handler
+   * @author Joni Mustaniemi
+   * @param handler Server signal handler
+   * @returns void
+   */
   public registerSignalHandler(handler: IServerSignalHandlerCallbackDelegate): void {
     this.socket.on("signal", handler);
   }
